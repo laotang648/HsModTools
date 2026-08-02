@@ -1,0 +1,15 @@
+# 编译产物
+bin/
+obj/
+发布/
+HsModInstaller发布/
+HsModBuilder发布/
+
+# 编译工具的内嵌依赖（体积大，需按 README 自行准备）
+Frameworks/
+
+# 杂项
+*.pdb
+*.user
+*.suo
+.vs/
