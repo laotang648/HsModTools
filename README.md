@@ -7,6 +7,8 @@
 - **HsModInstaller**：一键把 HsMod.dll 配置进炉石传说
 - **HsModBuilder**：把 HsMod 源码编译成 HsMod.dll（内置编译器，无需安装 .NET SDK）
 
+HsModInstaller 支持：自动检测/安装 BepInEx、位数匹配检查、健康检查、覆盖安装、**一键还原配置**（卸载插件环境，删除前自动备份）、**自定义备份目录**。
+
 ---
 
 ## 一、下载
@@ -95,6 +97,8 @@ BepInEx 源:      [游戏没有 BepInEx 时才需要填]
 | 提示"游戏正在运行" | 先关闭炉石再配置（游戏运行时文件被锁定） |
 | 配置后游戏里没有 Mod Settings | 看 `BepInEx\LogOutput.log` 有无报错；或勾选"覆盖安装 BepInEx"重装一次 |
 | 插件界面是英文 | 游戏内 Mod Settings → Global → HsMod Language 改成 zhCN，重启游戏 |
+| 想卸载/还原插件 | 点 **[还原配置]**：移除 BepInEx、winhttp.dll、doorstop_config.ini 等，恢复到未配置状态（删除前自动备份） |
+| 备份目录改哪里 | 界面"备份目录"行填任意路径（默认软件目录下 backup 文件夹），还原时自动备份到该目录 |
 
 ---
 

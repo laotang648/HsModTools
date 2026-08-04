@@ -329,6 +329,65 @@ public static class Installer
         }
     }
 
+    /// <summary>还原游戏目录到未配置状态（先备份再移除 BepInEx 及注入文件）</summary>
+    public static void Restore(string gameDir, string backupDir, Action<string> log)
+    {
+        log("==============================================");
+        log("还原配置开始");
+        if (!IsGameDir(gameDir)) throw new Exception($"游戏目录无效：{gameDir}（未找到 Hearthstone.exe）");
+
+        // 游戏运行时文件被锁定，必须先关闭
+        foreach (var p in Process.GetProcessesByName("Hearthstone"))
+        {
+            try
+            {
+                var exePath = p.MainModule?.FileName;
+                if (exePath != null && Path.GetDirectoryName(exePath)!.Equals(gameDir, StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("检测到 Hearthstone 正在运行！请先关闭游戏再还原。");
+            }
+            catch { }
+        }
+
+        string[] items =
+        {
+            Path.Combine(gameDir, "BepInEx"),
+            Path.Combine(gameDir, "winhttp.dll"),
+            Path.Combine(gameDir, "doorstop_config.ini"),
+            Path.Combine(gameDir, ".doorstop_version"),
+            Path.Combine(gameDir, "changelog.txt")
+        };
+        bool any = items.Any(i => File.Exists(i) || Directory.Exists(i));
+        if (!any)
+        {
+            log("未检测到 BepInEx 配置，无需还原。");
+            log("==============================================");
+            return;
+        }
+
+        // 先备份到用户指定的备份目录（默认软件目录 backup，可反悔）
+        if (string.IsNullOrWhiteSpace(backupDir)) backupDir = gameDir;
+        string backup = Path.Combine(backupDir, "HsModRestore_" + DateTime.Now.ToString("yyyyMMddHHmmss"));
+        try { Directory.CreateDirectory(backup); }
+        catch (Exception ex) { throw new Exception("备份目录无法创建：" + backupDir + " - " + ex.Message); }
+        foreach (var item in items)
+        {
+            string name = Path.GetFileName(item.TrimEnd(Path.DirectorySeparatorChar));
+            if (Directory.Exists(item)) Directory.Move(item, Path.Combine(backup, name));
+            else if (File.Exists(item)) File.Move(item, Path.Combine(backup, name));
+        }
+        log("已备份原配置到：" + backup);
+
+        // 顺带清理 BepInEx 运行日志
+        foreach (var f in Directory.GetFiles(gameDir, "preloader_*.log"))
+        {
+            try { File.Move(f, Path.Combine(backup, Path.GetFileName(f))); } catch { }
+        }
+
+        log("已移除：BepInEx 文件夹、winhttp.dll、doorstop_config.ini 等");
+        log("游戏目录已恢复到未配置状态。确认不需要后，可手动删除备份文件夹。");
+        log("==============================================");
+    }
+
     /// <summary>复制文件，失败时删除目标重试（目标被游戏进程映射时覆盖写会失败）</summary>
     private static void CopyWithRetry(string src, string dst)
     {
@@ -377,6 +436,7 @@ public class AppSettings
     public string? HsModDll { get; set; }
     public string? BepInExSource { get; set; }
     public string? ProjectDir { get; set; }
+    public string? BackupDir { get; set; }
 }
 
 /// <summary>主窗体</summary>
@@ -386,12 +446,14 @@ public class MainForm : Form
     private readonly TextBox txtHsMod = new();
     private readonly TextBox txtBepInEx = new();
     private readonly TextBox txtProject = new();
+    private readonly TextBox txtBackup = new();
     private readonly RichTextBox log = new();
     private readonly Button btnInstall = new();
     private readonly Button btnLaunch = new();
     private readonly Label lblBepState = new();
     private FlowLayoutPanel flow2 = null!;
     private readonly CheckBox chkForce = new();
+    private readonly Button btnRestore = new();
 
     public MainForm()
     {
@@ -406,7 +468,7 @@ public class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 7,
+            RowCount = 8,
             Padding = new Padding(12)
         };
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
@@ -449,7 +511,19 @@ public class MainForm : Form
         flow3.Controls.Add(MakeButton("浏览...", (s, e) => BrowseFolder(txtProject, "选择 HsMod 项目目录（含 UnstrippedCorlib 文件夹，可选）")));
         table.Controls.Add(flow3, 2, 3);
 
-        // ---- 行4: 推荐 BepInEx 提示 ----
+        // ---- 行4: 备份目录（还原时用）----
+        table.Controls.Add(new Label
+        {
+            Text = "备份目录:",
+            AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 8, 8, 0)
+        }, 0, 4);
+        txtBackup.Dock = DockStyle.Fill; txtBackup.Margin = new Padding(0, 6, 8, 6);
+        table.Controls.Add(txtBackup, 1, 4);
+        var flowBackup = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
+        flowBackup.Controls.Add(MakeButton("浏览...", (s, e) => BrowseFolder(txtBackup, "选择备份目录（还原时自动备份到这里）")));
+        table.Controls.Add(flowBackup, 2, 4);
+
+        // ---- 行5: 推荐 BepInEx 提示 ----
         var bepTip = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0, 2, 0, 2) };
         bepTip.Controls.Add(new Label { Text = "推荐 BepInEx：", AutoSize = true, ForeColor = Color.Gray, Margin = new Padding(0, 4, 4, 0) });
         var lnk = new LinkLabel
@@ -459,13 +533,13 @@ public class MainForm : Form
         };
         lnk.LinkClicked += (s, e) => Process.Start(new ProcessStartInfo("https://github.com/BepInEx/BepInEx/releases") { UseShellExecute = true });
         bepTip.Controls.Add(lnk);
-        table.Controls.Add(bepTip, 0, 4);
+        table.Controls.Add(bepTip, 0, 5);
         table.SetColumnSpan(bepTip, 3);
 
         // ---- 行5: 日志（占满剩余空间）----
         log.Dock = DockStyle.Fill; log.Margin = new Padding(0, 6, 0, 6);
         log.ReadOnly = true; log.BackColor = Color.White; log.Font = new Font("Consolas", 9F);
-        table.Controls.Add(log, 0, 5);
+        table.Controls.Add(log, 0, 6);
         table.SetColumnSpan(log, 3);
 
         // ---- 行5: 底部按钮 ----
@@ -476,6 +550,9 @@ public class MainForm : Form
         btnLaunch.Text = "启动游戏"; btnLaunch.Size = new Size(110, 34); btnLaunch.Margin = new Padding(0, 6, 8, 0);
         btnLaunch.Click += BtnLaunch_Click;
         flowBottom.Controls.Add(btnLaunch);
+        btnRestore.Text = "还原配置"; btnRestore.Size = new Size(110, 34); btnRestore.Margin = new Padding(0, 6, 8, 0);
+        btnRestore.Click += BtnRestore_Click;
+        flowBottom.Controls.Add(btnRestore);
         chkForce.Text = "覆盖安装 BepInEx（用下方源重装，旧文件自动备份）";
         chkForce.AutoSize = true; chkForce.Margin = new Padding(10, 12, 0, 0);
         chkForce.CheckedChanged += (s, e) => UpdateBepInExState();
@@ -485,9 +562,10 @@ public class MainForm : Form
             Text = "提示：界面语言跟随炉石客户端；改语言在游戏内 Mod Settings → Global → HsMod Language",
             AutoSize = true, ForeColor = Color.Gray, Margin = new Padding(8, 16, 0, 0)
         });
-        table.Controls.Add(flowBottom, 0, 6);
+        table.Controls.Add(flowBottom, 0, 7);
         table.SetColumnSpan(flowBottom, 3);
 
+        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -497,6 +575,9 @@ public class MainForm : Form
         table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         Controls.Add(table);
+
+        // 备份目录默认 = 软件所在目录的 backup 子文件夹
+        txtBackup.Text = Path.Combine(AppContext.BaseDirectory, "backup");
 
         FormClosing += (s, e) => SaveSettings();
 
@@ -534,6 +615,7 @@ public class MainForm : Form
             if (!string.IsNullOrWhiteSpace(cfg.HsModDll)) txtHsMod.Text = cfg.HsModDll;
             if (!string.IsNullOrWhiteSpace(cfg.BepInExSource)) txtBepInEx.Text = cfg.BepInExSource;
             if (!string.IsNullOrWhiteSpace(cfg.ProjectDir)) txtProject.Text = cfg.ProjectDir;
+            if (!string.IsNullOrWhiteSpace(cfg.BackupDir)) txtBackup.Text = cfg.BackupDir;
             Log("已加载配置文件：HsModInstaller.config.json（下次启动自动填充）");
         }
         catch { }
@@ -548,7 +630,8 @@ public class MainForm : Form
                 GameDir = txtGameDir.Text.Trim().Replace("\\\\", "\\"),
                 HsModDll = txtHsMod.Text.Trim(),
                 BepInExSource = txtBepInEx.Text.Trim(),
-                ProjectDir = txtProject.Text.Trim()
+                ProjectDir = txtProject.Text.Trim(),
+                BackupDir = txtBackup.Text.Trim().Replace("\\\\", "\\")
             };
             var json = JsonSerializer.Serialize(cfg, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "HsModInstaller.config.json"), json);
@@ -667,10 +750,40 @@ public class MainForm : Form
         }
     }
 
+    private async void BtnRestore_Click(object? sender, EventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(txtGameDir.Text))
+        {
+            Log("请先填写游戏目录。");
+            return;
+        }
+        var confirm = MessageBox.Show(
+            "将移除游戏目录中的 BepInEx 插件环境：\nBepInEx 文件夹、winhttp.dll、doorstop_config.ini。\n\n删除前会自动备份到备份文件夹，确定继续吗？",
+            "还原配置确认", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (confirm != DialogResult.Yes) return;
+        SetBusy(true);
+        try
+        {
+            string backupDir = txtBackup.Text.Trim();
+            if (backupDir.Length == 0) backupDir = Path.Combine(AppContext.BaseDirectory, "backup");
+            await Task.Run(() => Installer.Restore(txtGameDir.Text.Trim(), backupDir, Log));
+        }
+        catch (Exception ex)
+        {
+            Log("还原失败：" + ex.Message);
+        }
+        finally
+        {
+            SetBusy(false);
+            UpdateBepInExState();
+        }
+    }
+
     private void SetBusy(bool busy)
     {
         btnInstall.Enabled = !busy;
         btnLaunch.Enabled = !busy;
+        btnRestore.Enabled = !busy;
         txtGameDir.Enabled = !busy;
         txtHsMod.Enabled = !busy;
         txtBepInEx.Enabled = !busy;
