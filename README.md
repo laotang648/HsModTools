@@ -15,10 +15,10 @@ HsModInstaller 支持：自动检测/安装 BepInEx、位数匹配检查、健�
 
 在 **Releases** 页面下载两个 zip：
 
-| 文件 | 内容 | 体积 |
-|---|---|---|
+| 文件                 | 内容                        | 体积      |
+| -------------------- | --------------------------- | --------- |
 | `HsModInstaller.zip` | 配置工具（把 dll 装进游戏） | 约 145 MB |
-| `HsModBuilder.zip` | 编译工具（源码 → dll） | 约 241 MB |
+| `HsModBuilder.zip`   | 编译工具（源码 → dll）      | 约 241 MB |
 
 下载后**解压**（不要直接双击 zip 里的 exe）。解压出的文件夹必须**整个一起用**（exe 依赖旁边的 dll），不能只拷单个 exe。
 
@@ -90,15 +90,15 @@ BepInEx 源:      [游戏没有 BepInEx 时才需要填]
 
 ## 四、常见问题
 
-| 问题 | 解决方法 |
-|---|---|
-| BepInEx 状态显示红色"未检测到" | 下载 `BepInEx_win_x64_5.4.23.5.zip`，在"BepInEx 源"里选择 |
-| 提示"位数不匹配" | 炉石是 64 位，必须用 **x64 版** BepInEx |
-| 提示"游戏正在运行" | 先关闭炉石再配置（游戏运行时文件被锁定） |
-| 配置后游戏里没有 Mod Settings | 看 `BepInEx\LogOutput.log` 有无报错；或勾选"覆盖安装 BepInEx"重装一次 |
-| 插件界面是英文 | 游戏内 Mod Settings → Global → HsMod Language 改成 zhCN，重启游戏 |
-| 想卸载/还原插件 | 点 **[还原配置]**：移除 BepInEx、winhttp.dll、doorstop_config.ini 等，恢复到未配置状态（删除前自动备份） |
-| 备份目录改哪里 | 界面"备份目录"行填任意路径（默认软件目录下 backup 文件夹），还原时自动备份到该目录 |
+| 问题                           | 解决方法                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| BepInEx 状态显示红色"未检测到" | 下载 `BepInEx_win_x64_5.4.23.5.zip`，在"BepInEx 源"里选择                                                |
+| 提示"位数不匹配"               | 炉石是 64 位，必须用 **x64 版** BepInEx                                                                  |
+| 提示"游戏正在运行"             | 先关闭炉石再配置（游戏运行时文件被锁定）                                                                 |
+| 配置后游戏里没有 Mod Settings  | 看 `BepInEx\LogOutput.log` 有无报错；或勾选"覆盖安装 BepInEx"重装一次                                    |
+| 插件界面是英文                 | 游戏内 Mod Settings → Global → HsMod Language 改成 zhCN，重启游戏                                        |
+| 想卸载/还原插件                | 点 **[还原配置]**：移除 BepInEx、winhttp.dll、doorstop_config.ini 等，恢复到未配置状态（删除前自动备份） |
+| 备份目录改哪里                 | 界面"备份目录"行填任意路径（默认软件目录下 backup 文件夹），还原时自动备份到该目录                       |
 
 ---
 
@@ -118,11 +118,13 @@ dotnet publish -c Release -o ..\HsModBuilder发布
 
 也可以直接双击仓库里的 `编译发布.bat` 和 `编译发布-HsModBuilder.bat`。
 
-> **HsModBuilder 的特殊依赖**：编译引擎内置 Roslyn 编译器，但 .NET Framework 4.8 引用程序集（`Frameworks\v48\`，约 44MB）因体积原因未入库。重新编译 HsModBuilder 前需从 `.NET Framework 4.8 Developer Pack` 复制：
+> **HsModBuilder 的特殊依赖**：编译引擎内置 Roslyn 编译器，但 .NET Framework 4.8 引用程序集（`Frameworks\v48\`，约 44MB）因文件大小原因未入库。重新编译 HsModBuilder 前需从 `.NET Framework 4.8 Developer Pack` 复制：
+>
 > ```
 > C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\*.dll
 > → HsModBuilder\Frameworks\v48\
 > ```
+>
 > 一般用户无需重编译，直接用 Releases 成品即可。
 
 ---
